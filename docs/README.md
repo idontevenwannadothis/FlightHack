@@ -60,6 +60,13 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
+### Running the backend tests
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## 4. Frontend Setup (Next.js)
 ```bash
 cd frontend

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { getSupabase, getCurrentUserId, signInWithGoogle, signOut } from '@/lib/supabase';
 import { getSavedFlights, saveFlight } from '@/lib/savedFlights';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 const AUTH_USER_KEY = 'flighthack_auth_user_id';
 
@@ -65,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const sb = getSupabase();
     if (!sb) return;
 
-    const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       const uid = session?.user?.id ?? null;
       if (uid) {
         localStorage.setItem(AUTH_USER_KEY, uid);
