@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from services.serpapi_service import search_flights
@@ -9,20 +10,21 @@ from typing import Optional, List
 app = FastAPI(title="FlightHack API", description="API for cheap route finding and VPN price discrimination")
 
 # Allow Frontend to communicate with Backend
+# In production, set ALLOWED_ORIGINS to your frontend domain(s), comma-separated:
+#   ALLOWED_ORIGINS=https://your-app.vercel.app
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict to frontend domain
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-class SearchRequest(BaseModel):
-    origin: str
-    destination: str
-    date_from: str
-    date_to: Optional[str] = None
-    passengers: int = 1
 
 @app.get("/")
 def read_root():

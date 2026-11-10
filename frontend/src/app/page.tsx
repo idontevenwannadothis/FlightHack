@@ -9,6 +9,7 @@ import PriceComparison from '@/components/PriceComparison';
 import PriceCalendar from '@/components/PriceCalendar';
 import Filters from '@/components/Filters';
 import SavedSearches, { useSaveSearch } from '@/components/SavedSearches';
+import { API_URL } from '@/lib/config';
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
@@ -32,7 +33,7 @@ export default function Home() {
         }
       }
       const query = new URLSearchParams(cleaned).toString();
-      const res = await fetch(`http://localhost:8000/api/search?${query}`);
+      const res = await fetch(`${API_URL}/api/search?${query}`);
       
       if (!res.ok) throw new Error("Failed to fetch flights");
       

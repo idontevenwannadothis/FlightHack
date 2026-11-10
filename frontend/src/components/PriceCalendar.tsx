@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { API_URL } from '@/lib/config';
 
 function addDays(dateStr: string, days: number) {
   const [d, m, y] = dateStr.split('/').map(Number);
@@ -43,7 +44,7 @@ export default function PriceCalendar({
         const date = addDays(baseDate, offset);
         try {
           const res = await fetch(
-            `http://localhost:8000/api/search?origin=${origin}&destination=${destination}&date_from=${encodeURIComponent(date)}`
+            `${API_URL}/api/search?origin=${origin}&destination=${destination}&date_from=${encodeURIComponent(date)}`
           );
           const data = await res.json();
           if (data.results && data.results.length > 0) {

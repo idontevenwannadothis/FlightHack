@@ -2,6 +2,8 @@ const STORAGE_KEY = 'flighthack_saved_flights';
 const USER_KEY = 'flighthack_user_id';
 const AUTH_USER_KEY = 'flighthack_auth_user_id';
 
+import { API_URL } from './config';
+
 export interface SavedFlight {
   id: string;
   price: number;
@@ -30,7 +32,7 @@ export function getUserId(): string {
   return uid;
 }
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = API_URL;
 
 // ---- Backend sync helpers (silent fail if Supabase not configured) ----
 async function syncSaveToBackend(flight: any): Promise<void> {

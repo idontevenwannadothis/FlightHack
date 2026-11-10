@@ -1,4 +1,5 @@
 import os
+import time
 import httpx
 import urllib.parse
 import asyncio
@@ -9,6 +10,31 @@ load_dotenv()
 
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY", "your_serpapi_key_here")
 SERPAPI_URL = "https://serpapi.com/search.json"
+
+# ---- Simple in-memory response cache ----
+# Flight prices change slowly relative to search frequency; caching identical
+# queries avoids burning SerpApi quota on repeats.
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", str(4 * 60 * 60)))  # 4 hours
+_cache: dict = {}  # key -> (expires_at, results)
+
+
+def _cache_key(fly_from: str, fly_to: str, date_from: str, date_to: str, passengers: int) -> tuple:
+    return (fly_from.upper(), fly_to.upper(), format_date(date_from), format_date(date_to) if date_to else None, passengers)
+
+
+def _cache_get(key: tuple):
+    entry = _cache.get(key)
+    if not entry:
+        return None
+    expires_at, results = entry
+    if time.time() > expires_at:
+        _cache.pop(key, None)
+        return None
+    return results
+
+
+def _cache_set(key: tuple, results):
+    _cache[key] = (time.time() + CACHE_TTL_SECONDS, results)
 
 # Popular destinations for "Anywhere" mode
 ANYWHERE_DESTINATIONS = [
@@ -29,10 +55,15 @@ def format_date(date_str: str) -> str:
     except ValueError:
         return date_str
 
-async def fetch_single_route(client: httpx.AsyncClient, fly_from: str, fly_to: str, date_from: str, date_to: str = None):
+async def fetch_single_route(client: httpx.AsyncClient, fly_from: str, fly_to: str, date_from: str, date_to: str = None, passengers: int = 1):
     """Fetch and format flights for a single origin-destination pair"""
+    cache_key = _cache_key(fly_from, fly_to, date_from, date_to, passengers)
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     formatted_date_from = format_date(date_from)
-    
+
     params = {
         "engine": "google_flights",
         "departure_id": fly_from,
@@ -41,6 +72,7 @@ async def fetch_single_route(client: httpx.AsyncClient, fly_from: str, fly_to: s
         "type": "2",
         "currency": "EUR",
         "hl": "en",
+        "adults": max(1, passengers),
         "api_key": SERPAPI_API_KEY
     }
     
@@ -81,7 +113,15 @@ async def fetch_single_route(client: httpx.AsyncClient, fly_from: str, fly_to: s
                 })
             
             unique_airlines = list(set(airlines))
-            is_hack = len(unique_airlines) > 1 or len(legs) > 1
+
+            # A "hacked route" means virtual interlining / self-transfer, not an
+            # ordinary single-ticket connection. Signals:
+            #  - Google Flights explicitly flags "Self transfer" / "Separate tickets"
+            #  - multi-leg itinerary mixing different carriers (typically separate bookings)
+            extensions = " ".join(flight.get("extensions", [])).lower()
+            google_flagged = "self transfer" in extensions or "separate ticket" in extensions
+            multi_carrier = len(legs) > 1 and len(unique_airlines) > 1
+            is_hack = google_flagged or multi_carrier
             
             q = f"Flights to {fly_to} from {fly_from} on {formatted_date_from}"
             if date_to:
@@ -99,6 +139,7 @@ async def fetch_single_route(client: httpx.AsyncClient, fly_from: str, fly_to: s
                 "deep_link": f"https://www.google.com/travel/flights?q={urllib.parse.quote(q)}&curr=EUR"
             })
         
+        _cache_set(cache_key, formatted)
         return formatted
     except Exception as e:
         print(f"Error fetching {fly_from}->{fly_to}: {e}")
@@ -115,7 +156,7 @@ async def search_flights(fly_from: str, fly_to: str, date_from: str, date_to: st
         return await search_anywhere(fly_from, date_from, date_to, passengers)
     
     async with httpx.AsyncClient(timeout=30.0) as client:
-        return await fetch_single_route(client, fly_from, fly_to, date_from, date_to)
+        return await fetch_single_route(client, fly_from, fly_to, date_from, date_to, passengers)
 
 async def search_anywhere(fly_from: str, date_from: str, date_to: str = None, passengers: int = 1):
     """
@@ -126,7 +167,7 @@ async def search_anywhere(fly_from: str, date_from: str, date_to: str = None, pa
     
     async def rate_limited_fetch(client, dest):
         async with semaphore:
-            return await fetch_single_route(client, fly_from, dest, date_from, date_to)
+            return await fetch_single_route(client, fly_from, dest, date_from, date_to, passengers)
     
     async with httpx.AsyncClient(timeout=30.0) as client:
         tasks = [

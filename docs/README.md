@@ -14,6 +14,22 @@
 2. Copy your API key from the dashboard.
 3. Add it to `backend/.env` as `SERPAPI_API_KEY`.
 
+### Other backend environment variables (optional)
+```
+# Comma-separated frontend origins allowed to call the API (default: http://localhost:3000)
+ALLOWED_ORIGINS=https://your-app.vercel.app
+# Response cache TTL in seconds (default: 14400 = 4 hours). Caching identical
+# searches avoids burning SerpApi quota on repeats.
+CACHE_TTL_SECONDS=14400
+```
+
+### Frontend environment variables
+The frontend talks to the backend via `NEXT_PUBLIC_API_URL` (default: `http://localhost:8000`).
+Add to `frontend/.env.local` (and to Vercel environment variables when deploying):
+```
+NEXT_PUBLIC_API_URL=https://your-backend.onrender.com
+```
+
 ### Supabase (Optional — for cross-device flight sync + Google Auth)
 1. Create a new Supabase project at https://supabase.com.
 2. Run `docs/supabase_schema.sql` in the **SQL Editor**.
